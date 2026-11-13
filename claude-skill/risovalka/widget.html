@@ -1,0 +1,75 @@
+<h2 class="sr-only">Холст для рисования скетчей: карандаш, линия, прямоугольник, подписи, сохранение в PNG и отправка в чат.</h2>
+<style>
+.sk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+.sk-bar button{padding:0 10px;height:32px;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.sk-bar button.on{background:var(--bg-accent);border-color:var(--border-accent);color:var(--text-accent)}
+.sk-sw{width:24px;height:24px;border-radius:50%;border:0.5px solid var(--border-strong);cursor:pointer;padding:0}
+.sk-sw.on{box-shadow:0 0 0 2px var(--border-accent)}
+#sk-c{width:100%;height:440px;display:block;background:var(--surface-2);border:0.5px solid var(--border-strong);border-radius:12px;touch-action:none;cursor:crosshair}
+</style>
+<div style="padding:0.5rem 0">
+<div class="sk-bar" id="sk-tools">
+<button data-t="pen" class="on"><i class="ti ti-pencil" aria-hidden="true"></i>Карандаш</button>
+<button data-t="line"><i class="ti ti-line" aria-hidden="true"></i>Линия</button>
+<button data-t="rect"><i class="ti ti-rectangle" aria-hidden="true"></i>Рамка</button>
+<button data-t="text"><i class="ti ti-typography" aria-hidden="true"></i>Подпись</button>
+<input id="sk-txt" type="text" placeholder="болт М5" style="width:150px;height:32px;font-size:13px" />
+</div>
+<div class="sk-bar">
+<span id="sk-cols" style="display:inline-flex;gap:6px;align-items:center"></span>
+<label style="font-size:13px;color:var(--text-secondary);margin-left:8px">Толщина</label>
+<input id="sk-w" type="range" min="1" max="10" step="1" value="3" style="width:90px" />
+<button id="sk-grid"><i class="ti ti-grid-dots" aria-hidden="true"></i>Сетка</button>
+<button id="sk-undo"><i class="ti ti-arrow-back-up" aria-hidden="true"></i>Отменить</button>
+<button id="sk-clear"><i class="ti ti-trash" aria-hidden="true"></i>Очистить</button>
+</div>
+<canvas id="sk-c"></canvas>
+<div class="sk-bar" style="margin-top:10px">
+<button id="sk-png"><i class="ti ti-download" aria-hidden="true"></i>Сохранить PNG</button>
+<button id="sk-send">Отправить скетч в чат ↗</button>
+<span id="sk-err" style="font-size:13px;color:var(--text-danger)"></span>
+</div>
+</div>
+<script>
+(function(){
+var c=document.getElementById('sk-c'),x=c.getContext('2d'),W=680,H=440,dpr=window.devicePixelRatio||1;
+var shapes=[],cur=null,tool='pen',grid=false,err=document.getElementById('sk-err'),txt=document.getElementById('sk-txt');
+var cols=[['чёрный',null],['синий','#378ADD'],['красный','#E24B4A'],['зелёный','#639922'],['оранжевый','#EF9F27']],ci=0;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888'}
+function colOf(i){return cols[i][1]||css('--text-primary')}
+function fit(){W=c.clientWidth||680;c.width=W*dpr;c.height=H*dpr;draw()}
+function drawShape(s){x.strokeStyle=x.fillStyle=colOf(s.c);x.lineWidth=s.w;x.lineCap='round';x.lineJoin='round';
+ if(s.t==='pen'){x.beginPath();s.p.forEach(function(q,i){i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1])});if(s.p.length===1)x.lineTo(s.p[0][0]+0.1,s.p[0][1]);x.stroke()}
+ else if(s.t==='line'){x.beginPath();x.moveTo(s.a[0],s.a[1]);x.lineTo(s.b[0],s.b[1]);x.stroke()}
+ else if(s.t==='rect'){x.strokeRect(s.a[0],s.a[1],s.b[0]-s.a[0],s.b[1]-s.a[1])}
+ else if(s.t==='text'){x.font='16px '+(css('--font-sans')||'sans-serif');x.fillText(s.s,s.a[0],s.a[1])}}
+function draw(bg){x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+ if(bg){x.fillStyle=css('--surface-2');x.fillRect(0,0,W,H)}
+ if(grid){x.strokeStyle=css('--border');x.lineWidth=1;x.beginPath();for(var i=20;i<W;i+=20){x.moveTo(i,0);x.lineTo(i,H)}for(var j=20;j<H;j+=20){x.moveTo(0,j);x.lineTo(W,j)}x.stroke()}
+ shapes.forEach(drawShape);if(cur)drawShape(cur)}
+function pos(e){var r=c.getBoundingClientRect();return[Math.round(e.clientX-r.left),Math.round(e.clientY-r.top)]}
+c.addEventListener('pointerdown',function(e){err.textContent='';var p=pos(e),w=+document.getElementById('sk-w').value;
+ if(tool==='text'){var s=txt.value.trim();if(!s){err.textContent='Сначала введите текст подписи';txt.focus();return}shapes.push({t:'text',c:ci,w:w,a:p,s:s});draw();return}
+ c.setPointerCapture(e.pointerId);cur=tool==='pen'?{t:'pen',c:ci,w:w,p:[p]}:{t:tool,c:ci,w:w,a:p,b:p};draw()});
+c.addEventListener('pointermove',function(e){if(!cur)return;var p=pos(e);if(cur.t==='pen')cur.p.push(p);else cur.b=p;draw()});
+function end(){if(cur){shapes.push(cur);cur=null;draw()}}
+c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+txt.addEventListener('input',function(){err.textContent=''});
+document.querySelectorAll('#sk-tools button').forEach(function(b){b.addEventListener('click',function(){tool=b.dataset.t;document.querySelectorAll('#sk-tools button').forEach(function(o){o.classList.toggle('on',o===b)});if(tool==='text')txt.focus()})});
+var cw=document.getElementById('sk-cols');cols.forEach(function(k,i){var b=document.createElement('button');b.className='sk-sw'+(i?'':' on');b.setAttribute('aria-label',k[0]);b.style.background=k[1]||'var(--text-primary)';b.addEventListener('click',function(){ci=i;cw.querySelectorAll('button').forEach(function(o,j){o.classList.toggle('on',j===i)})});cw.appendChild(b)});
+document.getElementById('sk-grid').addEventListener('click',function(){grid=!grid;this.classList.toggle('on',grid);draw()});
+document.getElementById('sk-undo').addEventListener('click',function(){shapes.pop();draw()});
+document.getElementById('sk-clear').addEventListener('click',function(){shapes=[];draw()});
+document.getElementById('sk-png').addEventListener('click',function(){draw(true);var a=document.createElement('a');a.download='sketch.png';a.href=c.toDataURL('image/png');a.click();draw()});
+function thin(p,n){if(p.length<=n)return p;var o=[],st=(p.length-1)/(n-1);for(var i=0;i<n;i++)o.push(p[Math.round(i*st)]);return o}
+document.getElementById('sk-send').addEventListener('click',function(){
+ if(!shapes.length){err.textContent='Сначала нарисуйте что-нибудь';return}
+ var n=shapes.length>40?6:12,L=shapes.map(function(s,i){var k=cols[s.c][0],h=(i+1)+'. ';
+  if(s.t==='pen')return h+'кривая, '+k+': '+thin(s.p,n).map(function(q){return q.join(',')}).join(' ');
+  if(s.t==='line')return h+'линия, '+k+': '+s.a.join(',')+' → '+s.b.join(',');
+  if(s.t==='rect')return h+'рамка, '+k+': '+s.a.join(',')+' – '+s.b.join(',');
+  return h+'подпись «'+s.s+'», '+k+': '+s.a.join(',')});
+ sendPrompt('Мой скетч (холст '+Math.round(W)+'×'+H+', x вправо, y вниз, координаты в пикселях):\n'+L.join('\n').slice(0,7000))});
+window.addEventListener('resize',fit);fit();
+})();
+</script>

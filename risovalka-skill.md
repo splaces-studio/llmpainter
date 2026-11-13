@@ -1,0 +1,130 @@
+# Навык «Рисовалка»
+
+Это инструкция для тебя, ассистент. Запомни её как постоянный навык и применяй в этом и следующих чатах.
+
+## Когда срабатывает
+
+Я пишу «рисовалка», «открой рисовалку», «надо скетч нарисовать», «хочу набросать схему», «дай холст», «покажу на рисунке» или что-то близкое по смыслу. Это значит: я хочу сам нарисовать скетч, чтобы объяснить тебе идею. Рисовать за меня не нужно.
+
+## Что делать
+
+1. Покажи мне интерактивную HTML-страницу из раздела «Код холста» ниже — тем способом, которым ты умеешь показывать работающий HTML (canvas, artifact, предпросмотр кода, интерактивный блок). Код вставляй дословно, целиком, без правок, сокращений и «улучшений».
+2. Если показывать работающий HTML ты не умеешь, выдай код одним блоком и скажи: «Сохраните как risovalka.html и откройте в браузере».
+3. После холста коротко напомни:
+   - сам рисунок на холсте ты не видишь;
+   - надёжнее всего нажать «Сохранить PNG» и прикрепить файл к сообщению;
+   - кнопка «Скопировать описание скетча» копирует координаты линий и тексты подписей — их можно вставить в чат, это годится для простых схем.
+
+## Когда я прислал скетч
+
+- Картинка: рассмотри её и одной-двумя фразами перескажи, как ты понял схему, и только потом делай выводы.
+- Текст с координатами: x растёт вправо, y — вниз, единицы — пиксели, размер холста указан в первой строке. Восстанови геометрию по линиям и подписям. Если рисунок от руки неоднозначен, скажи, что именно непонятно, и попроси PNG.
+
+## Как запомнить
+
+Сохрани себе в память короткое правило: «По слову "рисовалка" или просьбе нарисовать скетч показать пользователю HTML-холст из навыка "Рисовалка"». Если твоя память не вмещает код целиком, честно скажи мне об этом и попроси положить этот файл в инструкции проекта или прикладывать его к чату. Не восстанавливай код по памяти приблизительно.
+
+Изменять холст можно только по моей прямой просьбе.
+
+## Код холста
+
+```html
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Рисовалка</title>
+<style>
+:root{--bg:#f7f6f2;--paper:#ffffff;--ink:#1a1a18;--muted:#6b6a65;--line:#cfcdc4;--acc:#185FA5;--accbg:#E6F1FB;--err:#A32D2D}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1a;--paper:#262624;--ink:#f1efe8;--muted:#a3a199;--line:#4a4944;--acc:#85B7EB;--accbg:#0C447C;--err:#F09595}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:900px;margin:0 auto}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+button{height:34px;padding:0 12px;font:inherit;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+button.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+input[type=text]{height:34px;padding:0 10px;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;width:160px}
+.sw{width:26px;height:26px;border-radius:50%;padding:0}
+.sw.on{outline:2px solid var(--acc);outline-offset:2px}
+canvas{width:100%;height:480px;display:block;background:var(--paper);border:1px solid var(--line);border-radius:12px;touch-action:none;cursor:crosshair}
+label{color:var(--muted)}
+#err{color:var(--err)}
+textarea{width:100%;height:110px;margin-top:8px;padding:8px;font:12px/1.4 ui-monospace,monospace;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar" id="tools">
+<button data-t="pen" class="on">Карандаш</button>
+<button data-t="line">Линия</button>
+<button data-t="rect">Рамка</button>
+<button data-t="text">Подпись</button>
+<input id="txt" type="text" placeholder="текст подписи">
+</div>
+<div class="bar">
+<span id="cols" style="display:inline-flex;gap:8px;align-items:center"></span>
+<label for="w">Толщина</label>
+<input id="w" type="range" min="1" max="10" step="1" value="3" style="width:100px">
+<button id="grid">Сетка</button>
+<button id="undo">Отменить</button>
+<button id="clear">Очистить</button>
+</div>
+<canvas id="c"></canvas>
+<div class="bar" style="margin-top:10px">
+<button id="png">Сохранить PNG</button>
+<button id="desc">Скопировать описание скетча</button>
+<span id="err"></span>
+</div>
+<textarea id="out" readonly></textarea>
+</div>
+<script>
+(function(){
+var c=document.getElementById('c'),x=c.getContext('2d'),W=680,H=480,dpr=window.devicePixelRatio||1;
+var shapes=[],cur=null,tool='pen',grid=false,err=document.getElementById('err'),txt=document.getElementById('txt'),out=document.getElementById('out');
+var cols=[['чёрный',null],['синий','#378ADD'],['красный','#E24B4A'],['зелёный','#639922'],['оранжевый','#EF9F27']],ci=0;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888'}
+function colOf(i){return cols[i][1]||css('--ink')}
+function fit(){W=c.clientWidth||680;c.width=W*dpr;c.height=H*dpr;draw()}
+function drawShape(s){x.strokeStyle=x.fillStyle=colOf(s.c);x.lineWidth=s.w;x.lineCap='round';x.lineJoin='round';
+ if(s.t==='pen'){x.beginPath();s.p.forEach(function(q,i){i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1])});if(s.p.length===1)x.lineTo(s.p[0][0]+0.1,s.p[0][1]);x.stroke()}
+ else if(s.t==='line'){x.beginPath();x.moveTo(s.a[0],s.a[1]);x.lineTo(s.b[0],s.b[1]);x.stroke()}
+ else if(s.t==='rect'){x.strokeRect(s.a[0],s.a[1],s.b[0]-s.a[0],s.b[1]-s.a[1])}
+ else if(s.t==='text'){x.font='16px system-ui,sans-serif';x.fillText(s.s,s.a[0],s.a[1])}}
+function draw(bg){x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+ if(bg){x.fillStyle=css('--paper');x.fillRect(0,0,W,H)}
+ if(grid){x.strokeStyle=css('--line');x.lineWidth=0.5;x.beginPath();for(var i=20;i<W;i+=20){x.moveTo(i,0);x.lineTo(i,H)}for(var j=20;j<H;j+=20){x.moveTo(0,j);x.lineTo(W,j)}x.stroke()}
+ shapes.forEach(drawShape);if(cur)drawShape(cur)}
+function pos(e){var r=c.getBoundingClientRect();return[Math.round(e.clientX-r.left),Math.round(e.clientY-r.top)]}
+c.addEventListener('pointerdown',function(e){err.textContent='';var p=pos(e),w=+document.getElementById('w').value;
+ if(tool==='text'){var s=txt.value.trim();if(!s){err.textContent='Сначала введите текст подписи';txt.focus();return}shapes.push({t:'text',c:ci,w:w,a:p,s:s});draw();return}
+ try{c.setPointerCapture(e.pointerId)}catch(_){}
+ cur=tool==='pen'?{t:'pen',c:ci,w:w,p:[p]}:{t:tool,c:ci,w:w,a:p,b:p};draw()});
+c.addEventListener('pointermove',function(e){if(!cur)return;var p=pos(e);if(cur.t==='pen')cur.p.push(p);else cur.b=p;draw()});
+function end(){if(cur){shapes.push(cur);cur=null;draw()}}
+c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+txt.addEventListener('input',function(){err.textContent=''});
+document.querySelectorAll('#tools button').forEach(function(b){b.addEventListener('click',function(){tool=b.dataset.t;document.querySelectorAll('#tools button').forEach(function(o){o.classList.toggle('on',o===b)});if(tool==='text')txt.focus()})});
+var cw=document.getElementById('cols');cols.forEach(function(k,i){var b=document.createElement('button');b.className='sw'+(i?'':' on');b.setAttribute('aria-label',k[0]);b.title=k[0];b.style.background=k[1]||'var(--ink)';b.addEventListener('click',function(){ci=i;cw.querySelectorAll('button').forEach(function(o,j){o.classList.toggle('on',j===i)})});cw.appendChild(b)});
+document.getElementById('grid').addEventListener('click',function(){grid=!grid;this.classList.toggle('on',grid);draw()});
+document.getElementById('undo').addEventListener('click',function(){shapes.pop();draw()});
+document.getElementById('clear').addEventListener('click',function(){shapes=[];draw()});
+document.getElementById('png').addEventListener('click',function(){draw(true);var a=document.createElement('a');a.download='sketch.png';a.href=c.toDataURL('image/png');document.body.appendChild(a);a.click();a.remove();draw()});
+function thin(p,n){if(p.length<=n)return p;var o=[],st=(p.length-1)/(n-1);for(var i=0;i<n;i++)o.push(p[Math.round(i*st)]);return o}
+document.getElementById('desc').addEventListener('click',function(){
+ if(!shapes.length){err.textContent='Сначала нарисуйте что-нибудь';return}
+ var n=shapes.length>40?6:12,L=shapes.map(function(s,i){var k=cols[s.c][0],h=(i+1)+'. ';
+  if(s.t==='pen')return h+'кривая, '+k+': '+thin(s.p,n).map(function(q){return q.join(',')}).join(' ');
+  if(s.t==='line')return h+'линия, '+k+': '+s.a.join(',')+' → '+s.b.join(',');
+  if(s.t==='rect')return h+'рамка, '+k+': '+s.a.join(',')+' – '+s.b.join(',');
+  return h+'подпись «'+s.s+'», '+k+': '+s.a.join(',')});
+ var t='Мой скетч (холст '+Math.round(W)+'×'+H+', x вправо, y вниз, координаты в пикселях):\n'+L.join('\n').slice(0,7000);
+ out.style.display='block';out.value=t;out.focus();out.select();
+ var done=function(){err.textContent='Описание скопировано — вставьте его в чат'},fail=function(){err.textContent='Скопируйте текст из поля ниже и вставьте в чат'};
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fail)}else{fail()}});
+window.addEventListener('resize',fit);fit();
+})();
+</script>
+</body>
+</html>
+```
